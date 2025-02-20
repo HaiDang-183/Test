@@ -1,177 +1,142 @@
-<img src="https://static.vecteezy.com/system/resources/previews/009/316/889/non_2x/database-icon-logo-illustration-database-storage-symbol-template-for-graphic-and-web-design-collection-free-vector.jpg" width="100%" height="auto">
+# Nginx (OpenResty) Integration for Load Balancer, Rate Limit & Auto Scale Up/Down
 
-# Thiết Lập Primary - Replica (Master/Slave) PostgreSQL Replication Sử Dụng Docker Compose
+## Table of Contents
+- [A. Rate Limit](#a-rate-limit)
+    - [Tổng quan](#tổng-quan)
+    - [Lưu ý](#lưu-ý)
+- [B. Auto Scale Up/Down](#b-auto-scale-updown)
+    - [Tổng quan](#tổng-quan-1)
+    - [Yêu cầu và Triển khai](#yêu-cầu-và-triển-khai)
+    - [Cấu hình Dynamic Backends](#cấu-hình-dynamic-backends)
+- [Test](#test)
+- [Commands & Process Management](#commands--process-management)
+- [Summary](#summary)
 
-<!-- TOC -->
+---
 
-# Overview
-- [Chuẩn bị môi trường](#chuẩn-bị-môi-trường)
-- [Tạo File `docker-compose.yml`](#tạo-file-docker-composeyml)
-- [Thiết lập Primary (Master)](#thiết-lập-master)
-- [Thiết lập Replica (Slave)](#thiết-lập-slave)
-- [Kiểm tra hoạt động của Replication](#kiểm-tra-hoạt-động-của-replication)
-- [Giám sát Replication](#giám-sát-replication)
-- [Quản lý hệ thống](#quản-lý-hệ-thống)
-- [Tối ưu hóa hệ thống](#tối-ưu-hóa-hệ-thống)
-- [Tổng kết](#tổng-kết)
+## A. Rate Limit
 
-<!-- TOC -->
+### Tổng quan
+Với mỗi yêu cầu từ một IP (client), Nginx (Reverse Proxy) sẽ thực hiện các bước sau:
+- **Bước 1:** Khi có yêu cầu từ một IP đến Reverse Proxy, tiến hành xóa toàn bộ số request cũ hơn khoảng `[t-60s, t]` của IP đó khỏi Redis.
+- **Bước 2:** Kiểm tra số lượng request còn lại của IP đó (trong khoảng thời gian 60 giây).
+    - Nếu số lượng request vượt ngưỡng cho phép, tiến hành giới hạn truy cập cho IP.
+    - Nếu chưa vượt ngưỡng, thêm request mới vào key của IP trong Redis và Nginx sẽ chuyển tiếp yêu cầu đến instance backend.
 
-## 1. Chuẩn Bị Môi Trường
+### Kết quả
 
-### 1.1 Cài đặt Docker và Docker Compose
-Trước tiên, bạn cần đảm bảo Docker và Docker Compose đã được cài đặt trên máy.
+### Lưu ý
+- **Khi thêm backend:**
+    - Ứng dụng chỉ ghi vào Redis sau khi khởi tạo hoàn tất.
+    - Điều này tránh trường hợp Nginx đọc từ Redis và điều phối tải đến backend chưa sẵn sàng.
 
-### 1.2 Tạo thư mục làm việc
-```sh
-mkdir postgres_replication && cd postgres_replication
-mkdir master slave  # Tạo thư mục để lưu dữ liệu PostgreSQL
-```
+- **Khi xóa backend:**
+    - Cần xóa backend khỏi Redis trước khi kill process.
+    - Nếu kill process trước rồi mới xóa, có thể dẫn đến việc Nginx điều phối tải đến server đã chết vì Redis chưa kịp cập nhật.
 
-## 2. Tạo File `docker-compose.yml`
-Tạo file `docker-compose.yml` với nội dung sau:
-```yaml
-version: '3.9'
-services:
-  master:
-    image: postgres:15
-    container_name: postgres_master
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: 1234
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./master:/var/lib/postgresql/data
+---
 
-  slave:
-    image: postgres:15
-    container_name: postgres_slave
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: 1234
-    depends_on:
-      - master
-    ports:
-      - "5433:5432"
-    volumes:
-      - ./slave:/var/lib/postgresql/data
-```
+## B. Auto Scale Up/Down
 
-## 3. Thiết Lập Master
+### Tổng quan
+Để thực hiện tự động scale theo tải, Nginx (OpenResty) cần quản lý được các yếu tố sau:
 
-### 3.1 Khởi động container
-```sh
-docker-compose up -d
-```
+1. **Theo dõi tải (traffic):**
+    - Sử dụng một key (ví dụ: `traffic:count`) để theo dõi số lượng request trong một đơn vị thời gian.
+    - **Triển khai:** Thêm phần này ngay trong Lua script của phần Rate Limit (ví dụ: `rate_limit.lua`).
+    - **Chú ý:** Chỉ tính các request không bị rate limit. Nếu tính tất cả, hệ thống có thể hiểu sai về "tải thực tế" và kích hoạt scale backend không cần thiết.
 
-### 3.2 Kết nối vào container Master
-```sh
-docker exec -it postgres_master bash
-```
+2. **Danh sách server (backends):**
+    - Danh sách các backend đang chạy cần được lưu và cập nhật trong Redis hoặc theo dõi qua một Discovery Service như Consul, Zookeeper,...
+    - **Triển khai:**
+        - Khi một instance backend được khởi chạy, nó tự thêm mình vào Redis với key `backend_servers`.
+        - Khi shutdown, nó tự xóa mình khỏi Redis.
+    - **Lưu ý:** Điều này giúp tránh Nginx điều phối tải đến server chưa khởi tạo hoặc đã chết.
+        - Khi thêm backend, chỉ ghi vào Redis sau khi ứng dụng khởi tạo hoàn tất.
+        - Khi xóa backend, cần xóa khỏi Redis trước khi kill process.
 
-### 3.3 Cấu hình PostgreSQL
-Sửa file `postgresql.conf`:
-```sh
-nano /var/lib/postgresql/data/postgresql.conf
-```
-Thêm các dòng sau:
-```
-wal_level = replica
-max_wal_senders = 10
-wal_keep_size = 64MB
-```
+### Cấu hình Dynamic Backends
+- **Vấn đề:** Thay vì cấu hình tĩnh các backend (ví dụ: `server http://localhost:8081, 8082, 8083,...`), chúng ta cần cấu hình Nginx dựa trên danh sách `backend_servers` trong Redis.
+- **Giải pháp:**
+    - Sử dụng Lua script để tự động cập nhật cấu hình danh sách backend theo thời gian thực mà không cần reload Nginx, đảm bảo hệ thống luôn theo dõi đúng các server hiện tại.
+    - Cách hoạt động: 
+      - Lua Script -> Lấy `list_servers` từ Redis ghi vào `Shared Memory` của Nginx
+      - Với mỗi request, Nginx -> Lấy `list_servers` từ `Shared Memory` của nó sau đó thực hiện điều phối tải. 
+---
 
-Sửa file `pg_hba.conf`:
-```sh
-nano /var/lib/postgresql/data/pg_hba.conf
-```
-Thêm dòng sau:
-```
-host    replication    replicator2    0.0.0.0/0    md5
-```
 
-### 3.4 Khởi động lại PostgreSQL trên Master
-```sh
-pg_ctl -D /var/lib/postgresql/data restart
-```
+## Test
 
-### 3.5 Tạo tài khoản replication
-```sql
-CREATE ROLE replicator2 WITH REPLICATION PASSWORD '1234' LOGIN;
-```
+- **Test tự động gửi request:**
+  ```powershell
+  1..11 | ForEach-Object { Invoke-WebRequest -Uri "http://localhost:8080/customer" -UseBasicParsing }
+  ```
 
-## 4. Thiết Lập Slave
+#### Kết quả:
 
-### 4.1 Kết nối vào container Slave
-```sh
-docker exec -it postgres_slave bash
-```
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://i.imgur.com/8cCdh0s.png" alt="Hình 1" width="300px"/><br>
+      <b>Hình 1:</b> Danh sách servers lúc đầu là 3
+    </td>
+    <td align="center">
+      <img src="https://i.imgur.com/juMkJV0.png" alt="Hình 2" width="300px"/><br>
+      <b>Hình 2:</b> Bị từ chối (429 Too Many Requests) khi vượt ngưỡng MAX_THRESHOLD
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="https://i.imgur.com/x2hN2f6.png" alt="Hình 3" width="300px"/><br>
+      <b>Hình 3:</b> Redis lưu trữ <code>rate_limit</code>, <code>traffic:count</code>, <code>backend_servers</code>
+    </td>
+    <td align="center">
+      <img src="https://i.imgur.com/NKBOzle.png" alt="Hình 4" width="300px"/><br>
+      <b>Hình 4:</b> Tự động thêm server (scale up) với port = 8084 khi <code>traffic:count</code> vượt ngưỡng MAX_THRESHOLD
+    </td>
+  </tr>
+</table>
 
-### 4.2 Xóa dữ liệu cũ và sao chép dữ liệu từ Master
-```sh
-rm -rf /var/lib/postgresql/data/*
-pg_basebackup -h postgres_master -D /var/lib/postgresql/data -U replicator2 -Fp -Xs -P -R
-```
 
-## 5. Kiểm Tra Hoạt Động Của Replication
+---
 
-### 5.1 Thêm dữ liệu vào Master
-```sh
-docker exec -it postgres_master psql -U admin -c "CREATE TABLE test_table (id SERIAL PRIMARY KEY, message TEXT);"
-docker exec -it postgres_master psql -U admin -c "INSERT INTO test_table (message) VALUES ('Hello from Master');"
-```
+- **Kiểm tra header của response (để biết server nào đã xử lý request):**
+  ```powershell
+  (Invoke-WebRequest -Uri "http://localhost:8080/customer").Headers
+  ```
+  #### Kết quả: 
+  <div align="left">
+        <img src="https://i.imgur.com/Z5bWych.png" alt="Hình 2" width="60%"/><br>
+        <b>Hình 5:</b> Response kèm thông tin server đã xử lý.
+  </div>
+  
+---
 
-### 5.2 Kiểm tra dữ liệu trên Slave
-```sh
-docker exec -it postgres_slave psql -U admin -c "SELECT * FROM test_table;"
-```
-Nếu dữ liệu xuất hiện, replication đã hoạt động.
+## Commands & Process Management
 
-## 6. Giám Sát Replication
+- **Kiểm tra PID process đang lắng nghe cổng:**
+  ```cmd
+  netstat -ano | findstr :<port>
+  ```
+- **Kill process bằng PID:**
+  ```cmd
+  taskkill /F /PID <PID>
+  ```
+- **Liệt kê các process của Nginx:**
+  ```cmd
+  tasklist | findstr nginx
+  ```
 
-### 6.1 Kiểm tra trạng thái replication trên Master
-```sh
-docker exec -it postgres_master psql -U admin -c "SELECT * FROM pg_stat_replication;"
-```
+---
 
-### 6.2 Theo dõi log
-```sh
-docker logs -f postgres_master
-docker logs -f postgres_slave
-```
+## Summary
 
-## 7. Quản Lý Hệ Thống
+- **Rate Limit:**  
+  Mỗi yêu cầu từ một IP được xử lý qua Redis để xóa các request cũ và kiểm tra ngưỡng giới hạn. Nếu vượt ngưỡng, IP sẽ bị giới hạn truy cập.
 
-### 7.1 Tắt hệ thống
-```sh
-docker stop postgres_slave
-docker stop postgres_master
-```
-
-### 7.2 Khởi động lại hệ thống
-```sh
-docker start postgres_master
-docker start postgres_slave
-```
-
-## 8. Tối Ưu Hóa Hệ Thống
-- **Tăng kích thước WAL**: Điều chỉnh `wal_keep_size` trong `postgresql.conf` nếu cần lưu trữ nhiều WAL hơn.
-- **Giảm checkpoint quá thường xuyên**: Điều chỉnh `checkpoint_timeout` và `max_wal_size`.
-- **Giám sát lâu dài**: Dùng `pgAdmin`, `Prometheus` để theo dõi.
-
-Ví dụ chỉnh sửa file cấu hình:
-```sh
-echo "checkpoint_timeout = 10min" >> /var/lib/postgresql/data/postgresql.conf
-echo "max_wal_size = 2GB" >> /var/lib/postgresql/data/postgresql.conf
-```
-
-## 9. Tổng Kết
-- **Master**:
-  - Cấu hình replication trong `postgresql.conf` và `pg_hba.conf`.
-  - Tạo user replication.
-- **Slave**:
-  - Xóa dữ liệu cũ.
-  - Sao chép dữ liệu từ Master bằng `pg_basebackup`.
-- **Kiểm tra và giám sát** để đảm bảo replication hoạt động ổn định.
-
+- **Auto Scale Up/Down:**
+    - Theo dõi traffic qua key `traffic:count` (chỉ tính các request không bị rate limit).
+    - Quản lý danh sách backend qua key `backend_servers` trong Redis (hoặc thông qua Discovery Service).
+    - Cấu hình dynamic cho Nginx thông qua Lua script để tự động cập nhật danh sách backend mà không cần reload.
+- Triển khai với Redis & Lua Script: [rate_limit.lua](https://github.com/Moriarty178/Backend-Electronic-Devices/blob/main/reverse_proxy_config/rate_limit.lua)
+---
