@@ -92,7 +92,7 @@ Với mỗi yêu cầu từ một IP (client), Nginx (Reverse Proxy) sẽ thực
     </td>
     <td align="left">
       <img src="https://i.imgur.com/NKBOzle.png" alt="Hình 4" height= "200px" width="360px"/><br>
-      <b>Hình 4:</b> Tự động thêm server (scale up) với port = 8084 khi <code>traffic:count</code> > MAX_THRESHOLD
+      <b>Hình 4:</b> Scale up với port = 8084 khi <code>traffic:count</code> > MAX_THRESHOLD
     </td>
   </tr>
 </table>
