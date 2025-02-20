@@ -77,21 +77,21 @@ Với mỗi yêu cầu từ một IP (client), Nginx (Reverse Proxy) sẽ thực
 <table>
   <tr>
     <td align="left">
-      <img src="https://i.imgur.com/8cCdh0s.png" alt="Hình 1" height= "200px width="360px"/><br>
+      <img src="https://i.imgur.com/8cCdh0s.png" alt="Hình 1" height= "200px" width="360px"/><br>
       <b>Hình 1:</b> Danh sách servers lúc đầu là 3
     </td>
     <td align="left">
-      <img src="https://i.imgur.com/juMkJV0.png" alt="Hình 2" height= "200px width="360px"/><br>
+      <img src="https://i.imgur.com/juMkJV0.png" alt="Hình 2" height= "200px" width="360px"/><br>
       <b>Hình 2:</b> Bị từ chối (429 Too Many Requests) khi vượt ngưỡng MAX_THRESHOLD
     </td>
   </tr>
   <tr>
     <td align="left">
-      <img src="https://i.imgur.com/x2hN2f6.png" alt="Hình 3" height= "200px width="360px"/><br>
+      <img src="https://i.imgur.com/x2hN2f6.png" alt="Hình 3" height= "200px" width="360px"/><br>
       <b>Hình 3:</b> Redis lưu trữ <code>rate_limit</code>, <code>traffic:count</code>, <code>backend_servers</code>
     </td>
     <td align="left">
-      <img src="https://i.imgur.com/NKBOzle.png" alt="Hình 4" height= "200px width="360px"/><br>
+      <img src="https://i.imgur.com/NKBOzle.png" alt="Hình 4" height= "200px" width="360px"/><br>
       <b>Hình 4:</b> Tự động thêm server (scale up) với port = 8084 khi <code>traffic:count</code> vượt ngưỡng MAX_THRESHOLD
     </td>
   </tr>
