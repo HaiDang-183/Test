@@ -106,7 +106,7 @@ Với mỗi yêu cầu từ một IP (client), Nginx (Reverse Proxy) sẽ thực
   ```
   #### Kết quả: 
   <div align="left">
-        <img src="https://i.imgur.com/Z5bWych.png" alt="Hình 2" width="60%"/><br>
+        <img src="https://i.imgur.com/SsAs3gg.png" alt="Hình 5" width="60%"/><br>
         <b>Hình 5:</b> Response kèm thông tin server đã xử lý.
   </div>
   
