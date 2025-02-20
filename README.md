@@ -82,7 +82,7 @@ Với mỗi yêu cầu từ một IP (client), Nginx (Reverse Proxy) sẽ thực
     </td>
     <td align="left">
       <img src="https://i.imgur.com/juMkJV0.png" alt="Hình 2" height= "200px" width="360px"/><br>
-      <b>Hình 2:</b> Bị từ chối (429 Too Many Requests) khi vượt ngưỡng MAX_THRESHOLD
+      <b>Hình 2:</b> Từ chối khi vượt ngưỡng MAX_THRESHOLD
     </td>
   </tr>
   <tr>
@@ -92,7 +92,7 @@ Với mỗi yêu cầu từ một IP (client), Nginx (Reverse Proxy) sẽ thực
     </td>
     <td align="left">
       <img src="https://i.imgur.com/NKBOzle.png" alt="Hình 4" height= "200px" width="360px"/><br>
-      <b>Hình 4:</b> Tự động thêm server (scale up) với port = 8084 khi <code>traffic:count</code> vượt ngưỡng MAX_THRESHOLD
+      <b>Hình 4:</b> Tự động thêm server (scale up) với port = 8084 khi <code>traffic:count</code> > MAX_THRESHOLD
     </td>
   </tr>
 </table>
