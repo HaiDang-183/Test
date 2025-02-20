@@ -1,4 +1,4 @@
-<img src="https://static.vecteezy.com/system/resources/previews/009/316/889/non_2x/database-icon-logo-illustration-database-storage-symbol-template-for-graphic-and-web-design-collection-free-vector.jpg" width="100%" height="150px">
+<img src="https://static.vecteezy.com/system/resources/previews/009/316/889/non_2x/database-icon-logo-illustration-database-storage-symbol-template-for-graphic-and-web-design-collection-free-vector.jpg" width="100%" height="200px">
 
 # Thiết Lập Primary - Replica (Master/Slave) PostgreSQL Replication Sử Dụng Docker Compose
 
