@@ -1,4 +1,4 @@
-<img src="https://media.geeksforgeeks.org/wp-content/uploads/20240224111842/Master-Slave-Replication.webp" width="100%" height="auto">
+<img src="https://media.geeksforgeeks.org/wp-content/uploads/20240224111842/Master-Slave-Replication.webp" width="100%" height="150px">
 
 # Thiết Lập Primary - Replica (Master/Slave) PostgreSQL Replication Sử Dụng Docker Compose
 
