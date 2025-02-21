@@ -140,3 +140,5 @@ Với mỗi yêu cầu từ một IP (client), Nginx (Reverse Proxy) sẽ thực
     - Cấu hình dynamic cho Nginx thông qua Lua script để tự động cập nhật danh sách backend mà không cần reload.
 - Triển khai với Redis & Lua Script: [rate_limit.lua](https://github.com/Moriarty178/Backend-Electronic-Devices/blob/main/reverse_proxy_config/rate_limit.lua)
 ---
+[original_path](https://github.com/HaiDang-183/Test/blob/main/test.txt)
+[relative_path](test.txt)
